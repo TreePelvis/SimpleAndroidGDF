@@ -44,6 +44,10 @@ public class Painter {
         canvas.drawRect(dstRect, paint);
     }
 
+    public void drawImage(Bitmap bitmap, int x, int y) {
+        canvas.drawBitmap(bitmap, x, y, paint);
+    }
+
     public void drawImage(Bitmap bitmap, int x, int y, int width, int height) {
         srcRect.set(0, 0, bitmap.getWidth(), bitmap.getHeight());
         dstRect.set(x, y, x + width, y + height);

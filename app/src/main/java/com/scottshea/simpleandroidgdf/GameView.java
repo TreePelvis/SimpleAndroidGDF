@@ -9,14 +9,12 @@ import android.util.Log;
 import android.view.SurfaceHolder;
 import android.view.SurfaceHolder.Callback;
 
+import com.scottshea.com.scottshea.game.state.LoadState;
 import com.scottshea.com.scottshea.game.state.State;
 import com.scottshea.framework.util.InputHandler;
 import com.scottshea.framework.util.Painter;
 
-/**
- * Created by Scott on 2/12/2016.
- */
-public class GameView extends SurfaceView {
+public class GameView extends SurfaceView implements Runnable {
     private Bitmap gameImage;
     private Rect gameImageSrc;
     private Rect gameImageDst;
@@ -41,7 +39,10 @@ public class GameView extends SurfaceView {
         holder.addCallback(new Callback() {
             @Override
             public void surfaceCreated(SurfaceHolder holder) {
-                Log.d("GameView", "Surface Created");
+                initInput();
+                if (currentState == null)
+                    setCurrentState(new LoadState());
+                initGame();
             }
 
             @Override
@@ -51,16 +52,76 @@ public class GameView extends SurfaceView {
 
             @Override
             public void surfaceDestroyed(SurfaceHolder holder) {
-                Log.d("GameView", "Surface Destroyed");
+                pauseGame();
             }
         });
     }
 
+    public void  initInput() {
+        if(inputHandler == null)
+            inputHandler = new InputHandler();
+        setOnTouchListener(inputHandler);
+    }
     public GameView(Context context) {
         super(context);
     }
 
     public void setCurrentState(State newState) {
+        System.gc();
+        newState.init();
+        currentState = newState;
+        inputHandler.setCurrentState(currentState);
+    }
 
+    private void initGame() {
+        running = true;
+        gameThread = new Thread(this, "Game Thread");
+        gameThread.start();
+    }
+
+    private void pauseGame() {
+        running = false;
+        while (gameThread.isAlive()) {
+            try {
+                gameThread.join();
+                break;
+            } catch (InterruptedException e) {}
+        }
+    }
+
+    private void updateAndRender(long delta) {
+        currentState.update(delta / 1000f);
+        currentState.render(graphics);
+        renderGameImage();
+    }
+
+    private void renderGameImage() {
+         Canvas screen = getHolder().lockCanvas();
+        if(screen != null) {
+            screen.getClipBounds(gameImageDst);
+            screen.drawBitmap(gameImage, gameImageSrc, gameImageDst, null);
+            getHolder().unlockCanvasAndPost(screen);
+        }
+    }
+
+    @Override
+    public void run() {
+        long updateDurationMillis = 0;
+        long sleepDurationMillis = 0;
+
+        while(running) {
+            long beforeUpdateRender = System.nanoTime();
+            long deltaMillis = sleepDurationMillis + updateDurationMillis;
+            updateAndRender(deltaMillis);
+
+            updateDurationMillis = (System.nanoTime() - beforeUpdateRender) / 1000000L;
+            sleepDurationMillis = Math.max(2, 17 - updateDurationMillis);
+
+            try {
+                Thread.sleep(sleepDurationMillis);
+            } catch (Exception e) {
+                e.printStackTrace();
+            }
+        }
     }
 }
